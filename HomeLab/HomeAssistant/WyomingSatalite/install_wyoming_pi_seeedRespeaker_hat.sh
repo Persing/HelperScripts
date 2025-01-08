@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# Copyright (c) 2023 Your Name
+# Copyright (c) 2023 Nick Persing
 # License: MIT
 # Description: Wyoming Satellite Installation Script
 
@@ -45,6 +45,37 @@ check_root() {
     fi
 }
 
+# Function to select an audio device
+select_audio_device() {
+    local type=$1
+    local devices
+    local device
+
+    if [ "$type" == "input" ]; then
+        msg_info "Listing input devices..."
+        devices=$(arecord -L | grep -E '^hw|^plughw' | awk '{print $1}')
+    elif [ "$type" == "output" ]; then
+        msg_info "Listing output devices..."
+        devices=$(aplay -L | grep -E '^hw|^plughw' | awk '{print $1}')
+    else
+        msg_error "Invalid device type. Use 'input' or 'output'."
+    fi
+
+    if [ -z "$devices" ]; then
+        msg_error "No $type devices found. Please check your audio hardware."
+    fi
+
+    echo "Available $type devices:"
+    select device in $devices; do
+        if [ -n "$device" ]; then
+            echo "$device"
+            return
+        else
+            msg_warn "Invalid selection. Please try again."
+        fi
+    done
+}
+
 # Update OS
 update_os() {
     msg_info "Updating OS packages..."
@@ -84,14 +115,11 @@ setup_venv() {
 configure_audio() {
     msg_info "Configuring audio devices..."
 
-    msg_info "Listing input devices..."
-    arecord -L
+    input_device=$(select_audio_device "input")
+    output_device=$(select_audio_device "output")
 
-    msg_info "Listing output devices..."
-    aplay -L
-
-    msg_warn "Please manually configure the input and output devices in the service file."
-    msg_warn "Edit the service file at /etc/systemd/system/wyoming-satellite.service and update the --mic-command and --snd-command flags."
+    msg_ok "Selected input device: $input_device"
+    msg_ok "Selected output device: $output_device"
 }
 
 # Set up Wyoming Satellite service
@@ -105,7 +133,7 @@ After=network-online.target
 
 [Service]
 Type=simple
-ExecStart=$INSTALL_DIR/script/run --name 'my satellite' --uri 'tcp://0.0.0.0:10700' --mic-command 'arecord -D plughw:CARD=seeed2micvoicec,DEV=0 -r 16000 -c 1 -f S16_LE -t raw' --snd-command 'aplay -D plughw:CARD=seeed2micvoicec,DEV=0 -r 22050 -c 1 -f S16_LE -t raw'
+ExecStart=$INSTALL_DIR/script/run --name 'my satellite' --uri 'tcp://0.0.0.0:10700' --mic-command 'arecord -D $input_device -r 16000 -c 1 -f S16_LE -t raw' --snd-command 'aplay -D $output_device -r 22050 -c 1 -f S16_LE -t raw'
 WorkingDirectory=$INSTALL_DIR
 Restart=always
 RestartSec=1
@@ -146,7 +174,7 @@ main() {
     check_root
 
     # Set installation directory
-    INSTALL_DIR="~/wyoming-satellite"
+    INSTALL_DIR="/opt/wyoming-satellite"
     export INSTALL_DIR
 
     msg_info "Starting Wyoming Satellite installation..."
