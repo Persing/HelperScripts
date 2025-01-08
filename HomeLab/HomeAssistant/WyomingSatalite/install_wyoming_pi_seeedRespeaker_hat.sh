@@ -38,6 +38,13 @@ catch_errors() {
     fi
 }
 
+# Check if running as root
+check_root() {
+    if [ "$EUID" -eq 0 ]; then
+        msg_error "Please do not run this script as root. Run it as a regular user and provide sudo permissions when prompted."
+    fi
+}
+
 # Update OS
 update_os() {
     msg_info "Updating OS packages..."
@@ -57,7 +64,7 @@ install_dependencies() {
 # Clone Wyoming Satellite repository
 clone_repository() {
     msg_info "Cloning Wyoming Satellite repository..."
-    git clone https://github.com/rhasspy/wyoming-satellite.git /opt/wyoming-satellite
+    git clone https://github.com/rhasspy/wyoming-satellite.git "$INSTALL_DIR"
     catch_errors
     msg_ok "Repository cloned successfully."
 }
@@ -65,10 +72,10 @@ clone_repository() {
 # Set up Python virtual environment
 setup_venv() {
     msg_info "Setting up Python virtual environment..."
-    python3 -m venv /opt/wyoming-satellite/.venv
-    source /opt/wyoming-satellite/.venv/bin/activate
+    python3 -m venv "$INSTALL_DIR/.venv"
+    source "$INSTALL_DIR/.venv/bin/activate"
     pip install --upgrade pip wheel setuptools
-    pip install -f 'https://synesthesiam.github.io/prebuilt-apps/' -r /opt/wyoming-satellite/requirements.txt -r /opt/wyoming-satellite/requirements_audio_enhancement.txt -r /opt/wyoming-satellite/requirements_vad.txt
+    pip install -f 'https://synesthesiam.github.io/prebuilt-apps/' -r "$INSTALL_DIR/requirements.txt" -r "$INSTALL_DIR/requirements_audio_enhancement.txt" -r "$INSTALL_DIR/requirements_vad.txt"
     catch_errors
     msg_ok "Virtual environment set up successfully."
 }
@@ -77,19 +84,20 @@ setup_venv() {
 configure_audio() {
     msg_info "Configuring audio devices..."
 
-    # List and select input device
-    input_device=$(select_audio_device "input")
+    msg_info "Listing input devices..."
+    arecord -L
 
-    # List and select output device
-    output_device=$(select_audio_device "output")
+    msg_info "Listing output devices..."
+    aplay -L
 
-    msg_ok "Audio devices configured successfully."
+    msg_warn "Please manually configure the input and output devices in the service file."
+    msg_warn "Edit the service file at /etc/systemd/system/wyoming-satellite.service and update the --mic-command and --snd-command flags."
 }
 
 # Set up Wyoming Satellite service
 setup_service() {
     msg_info "Setting up Wyoming Satellite service..."
-    cat <<EOF | sudo tee /etc/systemd/system/wyoming-satellite.service >/dev/null
+    sudo bash -c "cat > /etc/systemd/system/wyoming-satellite.service <<EOF
 [Unit]
 Description=Wyoming Satellite
 Wants=network-online.target
@@ -97,14 +105,14 @@ After=network-online.target
 
 [Service]
 Type=simple
-ExecStart=/opt/wyoming-satellite/script/run --name 'my satellite' --uri 'tcp://0.0.0.0:10700' --mic-command 'arecord -D $input_device -r 16000 -c 1 -f S16_LE -t raw' --snd-command 'aplay -D $output_device -r 22050 -c 1 -f S16_LE -t raw'
-WorkingDirectory=/opt/wyoming-satellite
+ExecStart=$INSTALL_DIR/script/run --name 'my satellite' --uri 'tcp://0.0.0.0:10700' --mic-command 'arecord -D plughw:CARD=seeed2micvoicec,DEV=0 -r 16000 -c 1 -f S16_LE -t raw' --snd-command 'aplay -D plughw:CARD=seeed2micvoicec,DEV=0 -r 22050 -c 1 -f S16_LE -t raw'
+WorkingDirectory=$INSTALL_DIR
 Restart=always
 RestartSec=1
 
 [Install]
 WantedBy=default.target
-EOF
+EOF"
     sudo systemctl enable --now wyoming-satellite.service
     catch_errors
     msg_ok "Wyoming Satellite service set up successfully."
@@ -113,20 +121,20 @@ EOF
 # Set up LED control service
 setup_led_service() {
     msg_info "Setting up LED control service..."
-    cat <<EOF | sudo tee /etc/systemd/system/2mic_leds.service >/dev/null
+    sudo bash -c "cat > /etc/systemd/system/2mic_leds.service <<EOF
 [Unit]
 Description=2Mic LEDs
 
 [Service]
 Type=simple
-ExecStart=/opt/wyoming-satellite/examples/.venv/bin/python3 /opt/wyoming-satellite/examples/2mic_service.py --uri 'tcp://127.0.0.1:10500'
-WorkingDirectory=/opt/wyoming-satellite/examples
+ExecStart=$INSTALL_DIR/examples/.venv/bin/python3 $INSTALL_DIR/examples/2mic_service.py --uri 'tcp://127.0.0.1:10500'
+WorkingDirectory=$INSTALL_DIR/examples
 Restart=always
 RestartSec=1
 
 [Install]
 WantedBy=default.target
-EOF
+EOF"
     sudo systemctl enable --now 2mic_leds.service
     catch_errors
     msg_ok "LED control service set up successfully."
@@ -135,6 +143,13 @@ EOF
 # Main function
 main() {
     color
+    check_root
+
+    # Set installation directory
+    INSTALL_DIR="/opt/wyoming-satellite"
+    export INSTALL_DIR
+
+    msg_info "Starting Wyoming Satellite installation..."
     update_os
     install_dependencies
     clone_repository
