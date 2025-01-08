@@ -186,7 +186,7 @@ main() {
     check_root
 
     # Set installation directory
-    INSTALL_DIR="~/wyoming-satellite"
+    INSTALL_DIR="$HOME/wyoming-satellite"
     export INSTALL_DIR
 
     msg_info "Starting Wyoming Satellite installation..."
