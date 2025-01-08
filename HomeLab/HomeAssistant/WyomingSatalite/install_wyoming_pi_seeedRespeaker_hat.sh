@@ -104,6 +104,17 @@ clone_repository() {
     fi
 }
 
+# Install Respeaker drivers (if applicable)
+install_respeaker_drivers() {
+    msg_info "Installing Respeaker drivers..."
+    sudo bash "$INSTALL_DIR/etc/install-respeaker-drivers.sh"
+    catch_errors
+    msg_ok "Respeaker drivers installed successfully."
+
+    msg_warn "The system will now reboot to apply changes. Please rerun this script after reboot to complete the setup."
+    sudo reboot
+}
+
 # Set up Python virtual environment
 setup_venv() {
     if [ -d "$INSTALL_DIR/.venv" ]; then
@@ -158,7 +169,7 @@ EOF"
     msg_ok "Wyoming Satellite service set up successfully."
 }
 
-# Set up LED control service
+# Set up LED control service (if applicable)
 setup_led_service() {
     msg_info "Setting up LED control service..."
     sudo bash -c "cat > /etc/systemd/system/2mic_leds.service <<EOF
@@ -178,6 +189,30 @@ EOF"
     sudo systemctl enable --now 2mic_leds.service
     catch_errors
     msg_ok "LED control service set up successfully."
+
+    # Update Wyoming Satellite service for LED integration
+    msg_info "Updating Wyoming Satellite service for LED integration..."
+    sudo bash -c "cat > /etc/systemd/system/wyoming-satellite.service <<EOF
+[Unit]
+Description=Wyoming Satellite
+Wants=network-online.target
+After=network-online.target
+Requires=2mic_leds.service
+
+[Service]
+Type=simple
+ExecStart=$INSTALL_DIR/script/run --name 'my satellite' --uri 'tcp://0.0.0.0:10700' --mic-command 'arecord -D $input_device -r 16000 -c 1 -f S16_LE -t raw' --snd-command 'aplay -D $output_device -r 22050 -c 1 -f S16_LE -t raw' --event-uri 'tcp://127.0.0.1:10500'
+WorkingDirectory=$INSTALL_DIR
+Restart=always
+RestartSec=1
+
+[Install]
+WantedBy=default.target
+EOF"
+    sudo systemctl daemon-reload
+    sudo systemctl restart wyoming-satellite.service
+    catch_errors
+    msg_ok "Wyoming Satellite service updated for LED integration."
 }
 
 # Main function
@@ -186,18 +221,36 @@ main() {
     check_root
 
     # Set installation directory
-    INSTALL_DIR="$HOME/wyoming-satellite"
+    INSTALL_DIR="$HOME/wyoming-satellite"  # Use $HOME instead of ~
     export INSTALL_DIR
 
     msg_info "Starting Wyoming Satellite installation..."
-    update_os
-    install_dependencies
-    clone_repository
-    setup_venv
-    configure_audio
-    setup_service
-    setup_led_service
-    msg_ok "Wyoming Satellite installation and configuration complete!"
+
+    # Prompt for driver installation
+    read -p "Do you need to install Respeaker drivers? (y/n): " INSTALL_DRIVERS
+    if [[ "$INSTALL_DRIVERS" =~ ^[Yy]$ ]]; then
+        update_os
+        install_dependencies
+        clone_repository
+        install_respeaker_drivers
+    else
+        update_os
+        install_dependencies
+        clone_repository
+        setup_venv
+        configure_audio
+        setup_service
+
+        # Prompt for LED service setup
+        read -p "Do you want to set up the LED control service? (y/n): " SETUP_LED
+        if [[ "$SETUP_LED" =~ ^[Yy]$ ]]; then
+            setup_led_service
+        else
+            msg_info "Skipping LED control service setup."
+        fi
+
+        msg_ok "Wyoming Satellite installation and configuration complete!"
+    fi
 }
 
 # Run the script
