@@ -38,55 +38,10 @@ catch_errors() {
     fi
 }
 
-# Helper function to list audio devices
-list_audio_devices() {
-    echo -e "\nListing input audio devices (microphones):"
-    arecord -L | grep -E '^plughw:' | nl -w 2 -s ') '
-
-    echo -e "\nListing output audio devices (speakers):"
-    aplay -L | grep -E '^plughw:' | nl -w 2 -s ') '
-}
-
-# Helper function to select an audio device
-select_audio_device() {
-    local device_type=$1 # "input" or "output"
-    local devices
-
-    if [[ "$device_type" == "input" ]]; then
-        devices=$(arecord -L | grep -E '^plughw:')
-    elif [[ "$device_type" == "output" ]]; then
-        devices=$(aplay -L | grep -E '^plughw:')
-    else
-        msg_error "Invalid device type. Use 'input' or 'output'."
-    fi
-
-    # List devices with numbers
-    echo -e "\nAvailable $device_type devices:"
-    echo "$devices" | nl -w 2 -s ') '
-
-    # Prompt user to select a device
-    while true; do
-        read -rp "Select the $device_type device number (or 'q' to quit): " choice
-        if [[ "$choice" == "q" ]]; then
-            msg_info "Exiting."
-            exit 0
-        elif [[ "$choice" =~ ^[0-9]+$ && "$choice" -le $(echo "$devices" | wc -l) ]]; then
-            selected_device=$(echo "$devices" | sed -n "${choice}p")
-            echo "Selected $device_type device: $selected_device"
-            break
-        else
-            msg_warn "Invalid choice. Please try again."
-        fi
-    done
-
-    # Return the selected device
-    echo "$selected_device"
-}
-
 # Update OS
 update_os() {
     msg_info "Updating OS packages..."
-    apt-get update -y && apt-get upgrade -y
+    sudo apt-get update -y && sudo apt-get upgrade -y
     catch_errors
     msg_ok "OS updated successfully."
 }
@@ -94,7 +49,7 @@ update_os() {
 # Install dependencies
 install_dependencies() {
     msg_info "Installing dependencies..."
-    apt-get install -y git python3-venv python3-spidev python3-gpiozero
+    sudo apt-get install -y git python3-venv python3-spidev python3-gpiozero
     catch_errors
     msg_ok "Dependencies installed successfully."
 }
@@ -150,7 +105,7 @@ RestartSec=1
 [Install]
 WantedBy=default.target
 EOF
-    systemctl enable --now wyoming-satellite.service
+    sudo systemctl enable --now wyoming-satellite.service
     catch_errors
     msg_ok "Wyoming Satellite service set up successfully."
 }
@@ -172,7 +127,7 @@ RestartSec=1
 [Install]
 WantedBy=default.target
 EOF
-    systemctl enable --now 2mic_leds.service
+    sudo systemctl enable --now 2mic_leds.service
     catch_errors
     msg_ok "LED control service set up successfully."
 }
