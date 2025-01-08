@@ -94,21 +94,33 @@ install_dependencies() {
 
 # Clone Wyoming Satellite repository
 clone_repository() {
-    msg_info "Cloning Wyoming Satellite repository..."
-    git clone https://github.com/rhasspy/wyoming-satellite.git "$INSTALL_DIR"
-    catch_errors
-    msg_ok "Repository cloned successfully."
+    if [ -d "$INSTALL_DIR" ]; then
+        msg_warn "Repository already exists at $INSTALL_DIR. Skipping clone."
+    else
+        msg_info "Cloning Wyoming Satellite repository..."
+        git clone https://github.com/rhasspy/wyoming-satellite.git "$INSTALL_DIR"
+        catch_errors
+        msg_ok "Repository cloned successfully."
+    fi
 }
 
 # Set up Python virtual environment
 setup_venv() {
-    msg_info "Setting up Python virtual environment..."
-    python3 -m venv "$INSTALL_DIR/.venv"
+    if [ -d "$INSTALL_DIR/.venv" ]; then
+        msg_warn "Virtual environment already exists at $INSTALL_DIR/.venv. Skipping setup."
+    else
+        msg_info "Setting up Python virtual environment..."
+        python3 -m venv "$INSTALL_DIR/.venv"
+        catch_errors
+        msg_ok "Virtual environment created successfully."
+    fi
+
+    msg_info "Installing Python dependencies..."
     source "$INSTALL_DIR/.venv/bin/activate"
     pip install --upgrade pip wheel setuptools
     pip install -f 'https://synesthesiam.github.io/prebuilt-apps/' -r "$INSTALL_DIR/requirements.txt" -r "$INSTALL_DIR/requirements_audio_enhancement.txt" -r "$INSTALL_DIR/requirements_vad.txt"
     catch_errors
-    msg_ok "Virtual environment set up successfully."
+    msg_ok "Python dependencies installed successfully."
 }
 
 # Configure audio devices
