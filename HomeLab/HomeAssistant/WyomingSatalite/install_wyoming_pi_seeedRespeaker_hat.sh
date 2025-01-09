@@ -177,7 +177,8 @@ Description=2Mic LEDs
 
 [Service]
 Type=simple
-ExecStart=$INSTALL_DIR/examples/.venv/bin/python3 $INSTALL_DIR/examples/2mic_service.py --uri 'tcp://127.0.0.1:10500'
+ExecStart=$INSTALL_DIR/examples/.venv/bin/python3 
+2mic_service.py --uri 'tcp://127.0.0.1:10500'
 WorkingDirectory=$INSTALL_DIR/examples
 Restart=always
 RestartSec=1
@@ -214,6 +215,18 @@ EOF"
     msg_ok "Wyoming Satellite service updated for LED integration."
 }
 
+# Reload and restart services
+reload_services() {
+    msg_info "Reloading and restarting services..."
+    sudo systemctl daemon-reload
+    sudo systemctl restart wyoming-satellite.service
+    if "$SETUP_LED" =~ ^[Yy]$ ]]; then
+        sudo systemctl restart 2mic_leds.service
+    fi
+    catch_errors
+    msg_ok "Services reloaded and restarted successfully."
+}
+
 # Main function
 main() {
     color
@@ -239,6 +252,7 @@ main() {
         setup_venv
         configure_audio
         setup_service
+        reload_services
 
         # Prompt for LED service setup
         read -p "Do you want to set up the LED control service? (y/n): " SETUP_LED
