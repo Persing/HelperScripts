@@ -168,6 +168,18 @@ EOF"
     msg_ok "Wyoming Satellite service set up successfully."
 }
 
+# Set up LED control Python virtual environment
+setup_led_venv() {
+    msg_info "Setting up LED control Python virtual environment..."
+    msg_info "Installing Python dependencies..."
+    python3 -m venv --system-site-packages "$INSTALL_DIR/examples/.venv"
+    "$INSTALL_DIR/examples/.venv/bin/pip3" install --upgrade pip
+    "$INSTALL_DIR/examples/.venv/bin/pip3" install --upgrade wheel setuptools
+    "$INSTALL_DIR/examples/.venv/bin/pip3" install 'wyoming==1.5.2'
+    catch_errors
+    msg_ok "Python dependencies installed successfully."
+}
+
 # Set up LED control service (if applicable)
 setup_led_service() {
     msg_info "Setting up LED control service..."
@@ -252,17 +264,19 @@ main() {
         setup_venv
         configure_audio
         setup_service
-        reload_services
 
         # Prompt for LED service setup
         read -p "Do you want to set up the LED control service? (y/n): " SETUP_LED
         if [[ "$SETUP_LED" =~ ^[Yy]$ ]]; then
             setup_led_service
+            setup_led_venv
         else
             msg_info "Skipping LED control service setup."
         fi
 
         msg_ok "Wyoming Satellite installation and configuration complete!"
+
+        reload_services
     fi
 }
 
