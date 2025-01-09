@@ -15,19 +15,19 @@ color() {
 
 # Logging functions
 msg_info() {
-    echo -e "${BLUE}[INFO]${NC} $1"
+    echo -e "${BLUE}[INFO]${NC} $1" >&2  # Log to stderr
 }
 
 msg_ok() {
-    echo -e "${GREEN}[OK]${NC} $1"
+    echo -e "${GREEN}[OK]${NC} $1" >&2  # Log to stderr
 }
 
 msg_warn() {
-    echo -e "${YELLOW}[WARN]${NC} $1"
+    echo -e "${YELLOW}[WARN]${NC} $1" >&2  # Log to stderr
 }
 
 msg_error() {
-    echo -e "${RED}[ERROR]${NC} $1"
+    echo -e "${RED}[ERROR]${NC} $1" >&2  # Log to stderr
     exit 1
 }
 
@@ -65,17 +65,16 @@ select_audio_device() {
         msg_error "No $type devices found. Please check your audio hardware."
     fi
 
-    echo "Available $type devices:"
+    echo "Available $type devices:" >&2  # Log to stderr
     select device in $devices; do
         if [ -n "$device" ]; then
-            echo "$device"
+            echo "$device"  # Return only the selected device to stdout
             return
         else
-            msg_warn "Invalid selection. Please try again."
+            msg_warn "Invalid selection. Please try again." >&2  # Log to stderr
         fi
     done
 }
-
 # Update OS
 update_os() {
     msg_info "Updating OS packages..."
